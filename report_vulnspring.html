@@ -334,6 +334,23 @@ Date: Mon, 18 Aug 2026 02:37:04 GMT</div>
         <span class="badge b-blue">정찰</span>
       </div>
       <div class="acard-body">
+
+        <!-- 탐색 방법론 설명 -->
+        <div class="box box-info" style="margin-bottom:16px;">
+          <strong>📌 본 테스트 환경 — 화이트박스(Whitebox) 탐색</strong><br>
+          이번 테스트는 소스코드가 공개된 화이트박스 환경이므로 컨트롤러 파일(<code>@GetMapping</code>, <code>@PostMapping</code>)을 직접 분석하여 엔드포인트를 식별하였습니다.<br><br>
+          <strong>실제 블랙박스(Blackbox) 환경이라면 다음 도구를 사용합니다:</strong>
+          <table class="tbl" style="margin-top:10px;">
+            <thead><tr><th>도구</th><th>목적</th><th>예시 명령</th></tr></thead>
+            <tbody>
+              <tr><td><code>gobuster</code> / <code>ffuf</code></td><td>URL 경로 브루트포싱 — wordlist로 숨겨진 경로 추측</td><td><code>gobuster dir -u http://target -w common.txt -x do,jsp</code></td></tr>
+              <tr><td><code>nikto</code></td><td>웹 서버 취약점 + 공개된 경로 자동 스캔</td><td><code>nikto -h http://target:8082</code></td></tr>
+              <tr><td><code>Burp Suite Spider</code></td><td>브라우저 탐색 중 요청을 자동 수집하여 엔드포인트 목록화</td><td>Proxy → Target → Site map</td></tr>
+              <tr><td>수동 탐색</td><td>JS 파일, robots.txt, sitemap.xml에서 숨겨진 경로 추출</td><td><code>curl http://target/robots.txt</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <div class="lbl">발견된 엔드포인트 목록 (정찰 단계에서 식별)</div>
         <table class="tbl">
           <thead><tr><th>URL</th><th>메서드</th><th>파라미터</th><th>의심 취약점</th></tr></thead>
