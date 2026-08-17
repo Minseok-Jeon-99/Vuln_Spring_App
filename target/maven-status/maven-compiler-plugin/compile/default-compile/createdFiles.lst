@@ -1,0 +1,6 @@
+com/vulnapp/config/DatabaseInit.class
+com/vulnapp/VulnApplication.class
+com/vulnapp/controller/SearchController.class
+com/vulnapp/controller/FileController.class
+com/vulnapp/controller/MainController.class
+com/vulnapp/controller/BoardController.class
